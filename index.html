@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlover's Streamer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&family=Bona+Nova+SC&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="Assets/icon.png">
+    
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #121212;
+            color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: #1e1e1e;
+            background-image: url('Assets/banner.png');
+            background-size: cover;
+            background-position: center;
+            text-align: center;
+            position: relative;
+            padding: 40px 0;
+            margin: 0;
+            border-bottom: 2px solid #8b0000;
+        }
+
+        h1 {
+            font-family: 'Bona Nova SC', serif;
+            color: #8be9fd;
+            font-size: 3rem;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            background: none; /* Removed the background */
+            display: inline-block;
+            padding: 0; /* Removed padding */
+            border-radius: 0; /* Removed border radius */
+        }
+
+        .search-container {
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 0 20px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #sourceSelect, #vidsrcTypeSelect {
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            border: 2px solid #8b0000;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            padding: 10px;
+            margin: 0 10px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.2rem;
+            background-color: #1e1e1e;
+            border: 2px solid #8b0000;
+            color: #f0f0f0;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #a52a2a;
+            box-shadow: 0 0 10px rgba(139, 0, 0, 0.3);
+        }
+
+        .search-results {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .result-item {
+            background-color: #1e1e1e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #8b0000;
+            transition: all 0.2s ease;
+        }
+
+        .result-item:hover {
+            background-color: #252525;
+            transform: translateX(5px);
+            border-color: #a52a2a;
+        }
+
+        .result-title {
+            color: #8be9fd;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        #videoContainer {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 0 20px;
+            aspect-ratio: 16 / 9;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+        }
+
+        #videoFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #vidsrcTypeSelect {
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            border: 2px solid #8b0000;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            padding: 10px;
+            margin: 0 10px;
+            width: auto; /* Make sure it matches the width of sourceSelect */
+            min-width: 200px; /* Adjust the minimum width as needed */
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Starlover's Streamer</h1>
+    </header>
+
+    <div class="search-container">
+        <select id="sourceSelect">
+            <option value="starlover">Starlover's Archive</option>
+            <option value="terorer">Terorer's Archive</option>
+            <option value="vidsrc">VidSrc (TMDb/IMDb ID)</option>
+        </select>
+
+        <input type="text" id="searchInput" placeholder="Search for movies, TV shows, or anime...">
+
+        <select id="vidsrcTypeSelect" style="display: none;">
+            <option value="movie">Movie</option>
+            <option value="series">TV Show</option>
+            <option value="anime">Anime</option>
+        </select>
+    </div>
+
+    <div id="searchResults" class="search-results"></div>
+
+    <div id="videoContainer" class="video-container">
+        <iframe id="videoFrame" allowfullscreen></iframe>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const videoContainer = document.getElementById('videoContainer');
+        const videoFrame = document.getElementById('videoFrame');
+        const sourceSelect = document.getElementById('sourceSelect');
+        const vidsrcTypeSelect = document.getElementById('vidsrcTypeSelect');
+        let mediaData = [];
+        let currentVidsrcType = '';
+        
+        async function loadTextFile(filename) {
+            try {
+                const response = await fetch(filename);
+                if (!response.ok) throw new Error(`Failed to load ${filename}`);
+                return await response.text();
+            } catch (error) {
+                console.error(`Error loading ${filename}:`, error);
+                return '';
+            }
+        }
+
+        function processTextContent(content) {
+            return content.split('\n')
+                .filter(line => line.trim())
+                .map(line => {
+                    const titleMatch = line.match(/\[(.*?)\]/);
+                    const urlMatch = line.match(/v=(https:\/\/.*?\.mp4)/);
+                    if (titleMatch && urlMatch) {
+                        return {
+                            title: titleMatch[1],
+                            url: urlMatch[1]
+                        };
+                    }
+                    return null;
+                })
+                .filter(item => item !== null);
+        }
+
+        async function initializeStarlover() {
+            const files = [
+                'Assets/Source/Movies.txt',
+                'Assets/Source/TvSeries.txt',
+                'Assets/Source/Anime.txt'
+            ];
+
+            for (const file of files) {
+                const content = await loadTextFile(file);
+                mediaData = [...mediaData, ...processTextContent(content)];
+            }
+        }
+
+        async function initializeTerorer() {
+            const files = [
+                'Assets/Source/TerorersMovies.txt',
+                'Assets/Source/TerorersTvSeries.txt',
+                'Assets/Source/TerorersAnime.txt'
+            ];
+
+            for (const file of files) {
+                const content = await loadTextFile(file);
+                mediaData = [...mediaData, ...processTextContent(content)];
+            }
+        }
+
+        function searchMedia(searchTerm) {
+            searchTerm = searchTerm.toLowerCase();
+            return mediaData.filter(item =>
+                item.title.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        function displayResults(results) {
+            searchResults.innerHTML = '';
+
+            results.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result-item';
+                resultDiv.innerHTML = `<div class="result-title">${result.title}</div>`;
+
+                resultDiv.addEventListener('click', () => {
+                    videoFrame.src = result.url;
+                    videoContainer.style.display = 'block';
+                    videoContainer.scrollIntoView({ behavior: 'smooth' });
+                });
+
+                searchResults.appendChild(resultDiv);
+            });
+        }
+
+        function fetchVidSrcURL(id) {
+            if (currentVidsrcType === 'movie') {
+                return `https://vidsrc.cc/v2/embed/movie/${id}?autoPlay=false`;
+            } else if (currentVidsrcType === 'series') {
+                const season = prompt('Enter season number:');
+                const episode = prompt('Enter episode number:');
+                return `https://vidsrc.cc/v2/embed/tv/${id}/${season}/${episode}?autoPlay=false`;
+            } else if (currentVidsrcType === 'anime') {
+                const episode = prompt('Enter episode number:');
+                return `https://vidsrc.cc/v2/embed/anime/${id}/${episode}/sub?autoPlay=false`;
+            }
+        }
+
+        sourceSelect.addEventListener('change', (e) => {
+            const selectedSource = e.target.value;
+            searchInput.placeholder = selectedSource === 'vidsrc' ? 'Input TMDb ID' : 'Search for movies, TV shows, or anime...';
+            vidsrcTypeSelect.style.display = selectedSource === 'vidsrc' ? 'inline-block' : 'none';
+            currentVidsrcType = ''; // Reset type selection for VidSrc
+
+            mediaData = []; // Clear previous search data
+
+            if (selectedSource === 'starlover') {
+                initializeStarlover();
+            } else if (selectedSource === 'terorer') {
+                initializeTerorer();
+            }
+        });
+
+        vidsrcTypeSelect.addEventListener('change', (e) => {
+            currentVidsrcType = e.target.value;
+            const tmdbId = searchInput.value.trim();
+            if (tmdbId) {
+                videoFrame.src = fetchVidSrcURL(tmdbId);
+                videoContainer.style.display = 'block';
+            }
+        });
+
+        let searchTimeout;
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const searchTerm = e.target.value.trim();
+                if (sourceSelect.value === 'vidsrc' && searchTerm) {
+                    videoFrame.src = fetchVidSrcURL(searchTerm);
+                    videoContainer.style.display = 'block';
+                    return;
+                }
+                if (searchTerm.length > 2) {
+                    const results = searchMedia(searchTerm);
+                    displayResults(results);
+                    if (results.length === 0) {
+                        searchResults.innerHTML = '<div class="result-item">No results found</div>';
+                    }
+                } else {
+                    searchResults.innerHTML = '';
+                    videoContainer.style.display = 'none';
+                    videoFrame.src = '';
+                }
+            }, 300);
+        });
+
+        initializeStarlover(); // Default to Starlover's archive
+    </script>
+</body>
+</html>
