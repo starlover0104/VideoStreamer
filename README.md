@@ -1,7 +1,7 @@
 # Video Streamer
 
 - This is a website based project using html, js and css
-- I made this myself and i was quite imperssed that i could so i hope those who do try it, enjoy it <3
+- Streams media free and simply in 1080p/Highest available quality, VidSrc allows the use of subtitles too
 
 # Features
 - Utilises [Fileditch](https://fileditch,com/) for a wide range of media uploaded
